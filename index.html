@@ -120,25 +120,30 @@
                 const gun = document.querySelector('#gun');
                 const hand = gun.parentEl; // main qui tient l'arme
                 hand.addEventListener('triggerdown', () => {
-                    // Crée la balle
                     const ball = document.createElement('a-sphere');
+
+                    // Position : utiliser la position de la main
                     const handPos = new THREE.Vector3();
-                    gun.object3D.getWorldPosition(handPos);
+                    hand.object3D.getWorldPosition(handPos);
                     ball.setAttribute('position', handPos);
                     ball.setAttribute('radius', 0.05);
                     ball.setAttribute('color', '#222222');
                     ball.setAttribute('dynamic-body', 'mass:0.1; shape:sphere');
 
-                    // Direction
-                    const forward = new THREE.Vector3();
-                    gun.object3D.getWorldDirection(forward);
+                    // Direction : utiliser la direction de la main (pointe de la main)
+                    const forward = new THREE.Vector3(0, 0, -1); // -Z local
+                    hand.object3D.getWorldDirection(forward);   // convertit en direction globale
                     forward.multiplyScalar(10); // vitesse
+
                     ball.addEventListener('body-loaded', () => {
-                        ball.body.applyImpulse(new CANNON.Vec3(forward.x, forward.y, forward.z), new CANNON.Vec3().copy(ball.body.position));
+                        ball.body.applyImpulse(
+                            new CANNON.Vec3(forward.x, forward.y, forward.z),
+                            new CANNON.Vec3().copy(ball.body.position)
+                        );
                     });
 
-                    // Supprime après 3s
-                    setTimeout(()=>ball.parentNode && ball.parentNode.removeChild(ball), 3000);
+                    // Supprime après 3 secondes
+                    setTimeout(() => ball.parentNode && ball.parentNode.removeChild(ball), 3000);
 
                     document.querySelector('a-scene').appendChild(ball);
                 });
