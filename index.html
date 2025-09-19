@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TP4 - Exercice 2 (corrigé)</title>
+    <title>TP4 - Exercice 2 (avec bouton VR)</title>
 
     <!-- A-Frame 0.9.2 -->
     <script src="https://aframe.io/releases/0.9.2/aframe.min.js"></script>
@@ -18,7 +18,8 @@
     <style>body { margin: 0; }</style>
 </head>
 <body>
-<a-scene physics="debug: true; gravity: -9.8">
+<!-- Scene avec bouton VR réactivé -->
+<a-scene physics="debug: true; gravity: -9.8" vr-mode-ui="enabled: true">
 
     <!-- Sol -->
     <a-plane rotation="-90 0 0" width="30" height="30" color="#7BC8A4"
@@ -54,7 +55,6 @@
                   physics-collider
                   collision-filter="collisionForces: false"
                   kinematic-body>
-            <!-- Simple modèle de main -->
             <a-sphere radius="0.05" color="blue"></a-sphere>
         </a-entity>
 
@@ -71,7 +71,6 @@
         </a-entity>
     </a-entity>
 
-    <!-- Sky -->
     <a-sky color="#ECECEC"></a-sky>
 </a-scene>
 </body>
