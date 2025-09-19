@@ -2,75 +2,73 @@
 <html lang="fr">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TP4 - Exercice 2 (A-Frame 0.9.2 + Physics)</title>
+    <title>TP4 - Exo1 & Exo2 (WebVR A-Frame)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
 
-    <!-- A-Frame 0.9.2 -->
-    <script src="https://aframe.io/releases/0.9.2/aframe.min.js"></script>
+    <!-- A-Frame -->
+    <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
 
-    <!-- Physics (Cannon.js) -->
-    <script src="https://cdn.rawgit.com/donmccurdy/aframe-physics-system/v3.3.0/dist/aframe-physics-system.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/aframe-physics-extras@0.1.3/dist/aframe-physics-extras.min.js"></script>
+    <!-- Movement controls -->
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.5.0/dist/aframe-extras.min.js"></script>
 
-    <!-- Super Hands -->
-    <script src="https://unpkg.com/super-hands@2.0.1/dist/super-hands.min.js"></script>
+    <!-- Physics (Ammo.js version, compatible A-Frame >=1.4) -->
+    <script src="https://cdn.jsdelivr.net/gh/n5ro/aframe-physics-system@5.0.0/dist/aframe-physics-system.min.js"></script>
 
-    <style>body { margin: 0; }</style>
+    <!-- Super-hands -->
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-super-hands-component@6.0.0/dist/aframe-super-hands.min.js"></script>
 </head>
 <body>
-<a-scene physics="debug: true; gravity: -9.8" vr-mode-ui="enabled: true">
-
-    <!-- Sol (statique) -->
-    <a-plane rotation="-90 0 0" width="30" height="30" color="#7BC8A4"
-             static-body shadow="receive: true"></a-plane>
+<a-scene background="color: #88c" physics="driver: ammo; gravity: -9.8">
 
     <!-- Lumières -->
-    <a-entity light="type: directional; intensity: 0.8" position="1 3 2"></a-entity>
-    <a-entity light="type: ambient; intensity: 0.5"></a-entity>
+    <a-entity light="type: ambient; intensity: 0.4"></a-entity>
+    <a-entity light="type: directional; intensity: 0.9; castShadow: true"
+              position="2 6 4"></a-entity>
 
-    <!-- Objets dynamiques (interactifs) -->
-    <a-box class="interactable" hoverable grabbable draggable stretchable droppable
-           position="-1 1 -3" color="#4CC3D9"
-           dynamic-body shadow="cast: true"></a-box>
+    <!-- Sol -->
+    <a-plane rotation="-90 0 0" width="40" height="40"
+             color="#2e3b2b"
+             shadow="receive: true"
+             static-body></a-plane>
 
-    <a-sphere class="interactable" hoverable grabbable draggable stretchable droppable
-              position="1 2 -2" radius="0.7" color="#EF2D5E"
-              dynamic-body shadow="cast: true"></a-sphere>
+    <!-- Objets grabbables -->
+    <a-box position="-1 2 -1" width="0.6" height="0.6" depth="0.6"
+           color="#ffd166"
+           dynamic-body
+           grabbable
+           shadow="cast: true; receive: true"></a-box>
 
-    <a-cylinder class="interactable" hoverable grabbable draggable stretchable droppable
-                position="3 1.5 -4" radius="0.5" height="1.4" color="#FFC65D"
-                dynamic-body shadow="cast: true"></a-cylinder>
+    <a-box position="0 3 -1.5" width="0.6" height="0.6" depth="0.6"
+           color="#06d6a0"
+           dynamic-body
+           grabbable
+           shadow="cast: true; receive: true"></a-box>
 
-    <!-- Rig caméra + contrôleurs -->
-    <a-entity id="rig" movement-controls="speed: 0.15; fly: false">
-        <a-entity camera position="0 1.6 0" look-controls></a-entity>
+    <a-sphere position="1.5 2.5 -0.5" radius="0.4"
+              color="#8338ec"
+              dynamic-body
+              grabbable
+              shadow="cast: true; receive: true"></a-sphere>
 
-        <!-- Main gauche -->
-        <a-entity id="leftHand"
+    <!-- Player rig -->
+    <a-entity id="player" position="0 1.6 5"
+              movement-controls="speed: 1.2; fly: false">
+        <a-entity id="head" camera look-controls></a-entity>
+
+        <a-entity hand-controls="hand: left"
+                  super-hands
                   oculus-touch-controls="hand: left"
                   vive-controls="hand: left"
-                  super-hands
-                  sphere-collider="objects: .interactable"
-                  physics-collider
-                  collision-filter="collisionForces: false"
-                  kinematic-body>
-            <a-sphere radius="0.05" color="blue"></a-sphere>
-        </a-entity>
+                  windows-motion-controls="hand: left"></a-entity>
 
-        <!-- Main droite -->
-        <a-entity id="rightHand"
+        <a-entity hand-controls="hand: right"
+                  super-hands
                   oculus-touch-controls="hand: right"
                   vive-controls="hand: right"
-                  super-hands
-                  sphere-collider="objects: .interactable"
-                  physics-collider
-                  collision-filter="collisionForces: false"
-                  kinematic-body>
-            <a-sphere radius="0.05" color="red"></a-sphere>
-        </a-entity>
+                  windows-motion-controls="hand: right"></a-entity>
     </a-entity>
 
-    <a-sky color="#ECECEC"></a-sky>
+    <a-sky color="#88c"></a-sky>
 </a-scene>
 </body>
 </html>
