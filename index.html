@@ -122,7 +122,7 @@
                 hand.addEventListener('triggerdown', () => {
                     const ball = document.createElement('a-sphere');
 
-                    // Position : utiliser la position de la main
+                    // Position du projectile : centre de la main ou de l’arme
                     const handPos = new THREE.Vector3();
                     hand.object3D.getWorldPosition(handPos);
                     ball.setAttribute('position', handPos);
@@ -130,10 +130,19 @@
                     ball.setAttribute('color', '#222222');
                     ball.setAttribute('dynamic-body', 'mass:0.1; shape:sphere');
 
-                    // Direction : utiliser la direction de la main (pointe de la main)
-                    const forward = new THREE.Vector3(0, 0, -1); // -Z local
-                    hand.object3D.getWorldDirection(forward);   // convertit en direction globale
-                    forward.multiplyScalar(10); // vitesse
+                    // Direction : axe local -Z transformé en coordonnées mondiales
+                    const forward = new THREE.Vector3(0, 0, -1); // direction locale "avant"
+                    hand.object3D.getWorldDirection(forward);    // pas fiable si rotation locale complexe
+
+                    // -> Meilleure approche : appliquer la matrice mondiale à l’axe local
+                    const matrixWorld = hand.object3D.matrixWorld;
+                    forward.set(0, 0, -1);                   // axe local
+                    forward.applyMatrix4(matrixWorld);       // transforme en coordonnée mondiale
+                    forward.sub(handPos).normalize();        // vecteur direction
+
+                    // Appliquer la vitesse
+                    const speed = 10;
+                    forward.multiplyScalar(speed);
 
                     ball.addEventListener('body-loaded', () => {
                         ball.body.applyImpulse(
@@ -147,6 +156,7 @@
 
                     document.querySelector('a-scene').appendChild(ball);
                 });
+
             }
         });
 
