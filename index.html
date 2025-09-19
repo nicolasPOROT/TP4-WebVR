@@ -2,73 +2,83 @@
 <html lang="fr">
 <head>
     <meta charset="utf-8" />
-    <title>TP4 - Exo1 & Exo2 (WebVR A-Frame)</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-
-    <!-- A-Frame -->
-    <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
-
-    <!-- Movement controls -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TP4 - WebVR</title>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.5.0/dist/aframe-extras.min.js"></script>
-
-    <!-- Physics (Ammo.js version, compatible A-Frame >=1.4) -->
-    <script src="https://cdn.jsdelivr.net/gh/n5ro/aframe-physics-system@5.0.0/dist/aframe-physics-system.min.js"></script>
-
-    <!-- Super-hands -->
-    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-super-hands-component@6.0.0/dist/aframe-super-hands.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-physics-system@4.0.1/dist/aframe-physics-system.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/super-hands@4.0.5/dist/super-hands.min.js"></script>
+    <style>body { margin: 0; }</style>
 </head>
 <body>
-<a-scene background="color: #88c" physics="driver: ammo; gravity: -9.8">
+<a-scene physics="gravity: -9.8" shadow="type: pcfsoft" background="color: #88ccee">
 
-    <!-- Lumières -->
-    <a-entity light="type: ambient; intensity: 0.4"></a-entity>
-    <a-entity light="type: directional; intensity: 0.9; castShadow: true"
-              position="2 6 4"></a-entity>
+    <!-- Lights -->
+    <a-entity id="sun" light="type: directional; intensity: 1; castShadow: true" position="-2 4 4" rotation="-45 30 0"></a-entity>
+    <a-entity light="type: ambient; intensity: 0.5"></a-entity>
 
-    <!-- Sol -->
-    <a-plane rotation="-90 0 0" width="40" height="40"
-             color="#2e3b2b"
-             shadow="receive: true"
-             static-body></a-plane>
+    <!-- Ground plane (static body for physics) -->
+    <a-plane rotation="-90 0 0" width="30" height="30" color="#7BC8A4" shadow="receive: true" position="0 0 0" static-body></a-plane>
 
-    <!-- Objets grabbables -->
-    <a-box position="-1 2 -1" width="0.6" height="0.6" depth="0.6"
-           color="#ffd166"
-           dynamic-body
-           grabbable
-           shadow="cast: true; receive: true"></a-box>
+    <!-- Objects with physics and grabbable -->
+    <a-box class="interactable" position="-1 1 -3" rotation="0 45 0" depth="1" height="1" width="1" color="#4CC3D9" shadow="cast: true; receive: true" dynamic-body grabbable stretchable draggable></a-box>
 
-    <a-box position="0 3 -1.5" width="0.6" height="0.6" depth="0.6"
-           color="#06d6a0"
-           dynamic-body
-           grabbable
-           shadow="cast: true; receive: true"></a-box>
+    <a-sphere class="interactable" position="1 2 -2" radius="0.7" color="#EF2D5E" shadow="cast: true; receive: true" dynamic-body grabbable stretchable draggable></a-sphere>
 
-    <a-sphere position="1.5 2.5 -0.5" radius="0.4"
-              color="#8338ec"
-              dynamic-body
-              grabbable
-              shadow="cast: true; receive: true"></a-sphere>
+    <a-cylinder class="interactable" position="3 1.5 -4" radius="0.5" height="1.4" color="#FFC65D" shadow="cast: true; receive: true" dynamic-body grabbable stretchable draggable></a-cylinder>
 
-    <!-- Player rig -->
-    <a-entity id="player" position="0 1.6 5"
-              movement-controls="speed: 1.2; fly: false">
-        <a-entity id="head" camera look-controls></a-entity>
+    <!-- Camera rig with controllers -->
+    <a-entity id="rig" movement-controls="speed: 0.15; fly: false">
+        <!-- Camera -->
+        <a-entity id="camera" camera look-controls="pointerLockEnabled: true" position="0 1.6 0"></a-entity>
 
-        <a-entity hand-controls="hand: left"
+        <!-- Left hand with super-hands -->
+        <a-entity id="leftHand"
+                  hand-controls="hand: left; handModelStyle: lowPoly; color: #ffcccc"
                   super-hands
-                  oculus-touch-controls="hand: left"
-                  vive-controls="hand: left"
-                  windows-motion-controls="hand: left"></a-entity>
+                  sphere-collider="objects: .interactable"
+                  position="0 1.5 0"></a-entity>
 
-        <a-entity hand-controls="hand: right"
+        <!-- Right hand with super-hands -->
+        <a-entity id="rightHand"
+                  hand-controls="hand: right; handModelStyle: highPoly; color: #ffcccc"
                   super-hands
-                  oculus-touch-controls="hand: right"
-                  vive-controls="hand: right"
-                  windows-motion-controls="hand: right"></a-entity>
+                  sphere-collider="objects: .interactable"
+                  position="0 1.5 0"></a-entity>
     </a-entity>
 
-    <a-sky color="#88c"></a-sky>
+    <a-sky color="#c4f6ff"></a-sky>
+
+    <!-- Script: rotation avec joystick droit -->
+    <script>
+        AFRAME.registerComponent('gamepad-rotate', {
+            tick: function () {
+                const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+                let gp = null;
+                for (let i = 0; i < gamepads.length; i++) {
+                    const g = gamepads[i];
+                    if (g && g.connected && g.axes && g.axes.length >= 4) { gp = g; break; }
+                }
+                if (!gp) return;
+                const rx = gp.axes[2] || 0;
+                const dead = 0.2;
+                const strength = Math.abs(rx) > dead ? rx : 0;
+                if (strength !== 0) {
+                    const rig = document.querySelector('#rig');
+                    const turnSpeed = 1.8;
+                    const currentRot = rig.getAttribute('rotation');
+                    const newY = currentRot.y - strength * turnSpeed;
+                    rig.setAttribute('rotation', { x: currentRot.x, y: newY, z: currentRot.z });
+                }
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const scene = document.querySelector('a-scene');
+            if (scene) scene.setAttribute('gamepad-rotate', '');
+        });
+    </script>
+
 </a-scene>
 </body>
 </html>
