@@ -49,37 +49,37 @@
     <a-entity id="rig" position="0 1 0" joystick-movement="speed:2" snap-turn="angle:30; cooldown:300">
         <a-entity id="camera" camera look-controls position="0 1.6 0"></a-entity>
 
-        <!-- Left hand -->
+        <!-- Left hand → Snap-turn (changer la vue) -->
         <a-entity id="leftHand"
                   oculus-touch-controls="hand: left"
-                  super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
                   sphere-collider="objects: .grabbable"
+                  super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
                   static-body="shape: sphere; sphereRadius:0.03">
         </a-entity>
 
-        <!-- Right hand -->
+        <!-- Right hand → Déplacement -->
         <a-entity id="rightHand"
                   oculus-touch-controls="hand: right"
-                  super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
                   sphere-collider="objects: .grabbable"
+                  super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
                   static-body="shape: sphere; sphereRadius:0.03">
         </a-entity>
     </a-entity>
 
     <a-sky color="#c4f6ff"></a-sky>
 
-    <!-- Déplacement joystick gauche -->
+    <!-- Déplacement joystick droit -->
     <script>
         AFRAME.registerComponent('joystick-movement', {
             schema: { speed: { type: 'number', default: 2 } },
             init: function () {
                 const rig = this.el;
                 const head = rig.querySelector('#camera');
-                const leftHand = rig.querySelector('#leftHand');
+                const rightHand = rig.querySelector('#rightHand'); // Changement ici
                 const DEADZONE = 0.1;
                 const speed = this.data.speed;
 
-                leftHand.addEventListener('thumbstickmoved', evt => {
+                rightHand.addEventListener('thumbstickmoved', evt => {
                     const dx = evt.detail.x, dy = evt.detail.y;
                     if(Math.abs(dx)<DEADZONE && Math.abs(dy)<DEADZONE) return;
 
@@ -97,16 +97,16 @@
             }
         });
 
-        // Snap-turn joystick droit
+        // Snap-turn joystick gauche
         AFRAME.registerComponent('snap-turn', {
             schema: { angle:{type:'number', default:30}, cooldown:{type:'number', default:300} },
             init: function () {
                 const rig = this.el;
-                const rightHand = rig.querySelector('#rightHand');
+                const leftHand = rig.querySelector('#leftHand'); // Changement ici
                 let lastTurn = 0;
                 const angleRad = THREE.MathUtils.degToRad(this.data.angle);
 
-                rightHand.addEventListener('thumbstickmoved', evt => {
+                leftHand.addEventListener('thumbstickmoved', evt => {
                     const now = Date.now(), x=evt.detail.x;
                     if(Math.abs(x)<0.8 || now-lastTurn<this.data.cooldown) return;
                     if(x>0.8) rig.object3D.rotation.y -= angleRad;
