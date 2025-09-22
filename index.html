@@ -22,7 +22,7 @@
     <!-- Ground -->
     <a-plane rotation="-90 0 0" width="30" height="30" color="#7BC8A4" shadow="receive: true" static-body></a-plane>
 
-    <!-- Objets grabbables -->
+    <!-- Exemple objets grabbables -->
     <a-box class="grabbable" position="-1 1 -3" rotation="0 45 0" depth="1" height="1" width="1" color="#4CC3D9"
            shadow="cast: true; receive: true"
            grabbable="usePhysics: only" dynamic-body="mass:1; shape:box"></a-box>
@@ -35,15 +35,17 @@
                 shadow="cast: true; receive: true"
                 grabbable="usePhysics: only" dynamic-body="mass:0.75; shape:cylinder"></a-cylinder>
 
-    <!-- Pistolet initial sur table -->
+    <!-- Pistolet sur la table -->
     <a-entity id="gun" class="grabbable"
               gltf-model="url(pistol.glb)"
               scale="0.05 0.05 0.05"
               position="-1 2 -3"
               rotation="0 0 180"
-              grabbable="startButtons: gripdown; endButtons: gripup; usePhysics: true"
+              grabbable="startButtons: gripdown; endButtons: gripup; usePhysics: true; attach: #handAttach"
               dynamic-body="mass:0.6; shape:box">
-        <!-- Projectile visible tant que non tiré -->
+        <!-- Point d'attache main -->
+        <a-entity id="handAttach" position="0 -0.1 0"></a-entity>
+        <!-- Projectile visible sur le pistolet -->
         <a-entity id="loadedProjectile"
                   gltf-model="url(projectile.glb)"
                   scale="0.2 0.2 0.2"
@@ -77,107 +79,91 @@
                 this.el.addEventListener('model-loaded', () => {
                     this.el.object3D.traverse(node => {
                         if (node.isMesh && node.material) {
-                            if (Array.isArray(node.material)) node.material.forEach(m => { m.flatShading = true; m.needsUpdate = true; });
-                            else { node.material.flatShading = true; node.material.needsUpdate = true; }
+                            if (Array.isArray(node.material)) node.material.forEach(m => { m.flatShading=true; m.needsUpdate=true; });
+                            else { node.material.flatShading=true; node.material.needsUpdate=true; }
                         }
                     });
                 });
             }
         });
-        document.addEventListener('DOMContentLoaded', ()=> {
-            document.querySelectorAll('[gltf-model]').forEach(el => el.setAttribute('flat-shading',''));
-        });
+        document.addEventListener('DOMContentLoaded',()=>{document.querySelectorAll('[gltf-model]').forEach(el=>el.setAttribute('flat-shading',''));});
 
         // Déplacement rig
-        AFRAME.registerComponent('joystick-movement', {
-            schema: { speed: { type: 'number', default: 2 } },
-            init: function () {
-                const rig = this.el;
-                const head = rig.querySelector('#camera');
-                const rightHand = rig.querySelector('#rightHand');
-                const DEADZONE = 0.1;
-                const speed = this.data.speed;
-                rightHand.addEventListener('thumbstickmoved', evt => {
-                    const dx = evt.detail.x, dy = evt.detail.y;
-                    if (Math.abs(dx)<DEADZONE && Math.abs(dy)<DEADZONE) return;
-                    const forward = new THREE.Vector3(); head.object3D.getWorldDirection(forward); forward.y=0; forward.normalize();
-                    const right = new THREE.Vector3(); right.crossVectors(forward,new THREE.Vector3(0,1,0)).negate();
-                    rig.object3D.position.addScaledVector(forward, dy*0.05*speed);
-                    rig.object3D.position.addScaledVector(right, dx*0.05*speed);
+        AFRAME.registerComponent('joystick-movement',{schema:{speed:{type:'number',default:2}},init:function(){
+                const rig=this.el,head=rig.querySelector('#camera'),rightHand=rig.querySelector('#rightHand'),DEADZONE=0.1,speed=this.data.speed;
+                rightHand.addEventListener('thumbstickmoved',evt=>{
+                    const dx=evt.detail.x,dy=evt.detail.y;
+                    if(Math.abs(dx)<DEADZONE && Math.abs(dy)<DEADZONE) return;
+                    const forward=new THREE.Vector3();head.object3D.getWorldDirection(forward);forward.y=0;forward.normalize();
+                    const right=new THREE.Vector3();right.crossVectors(forward,new THREE.Vector3(0,1,0)).negate();
+                    rig.object3D.position.addScaledVector(forward,dy*0.05*speed);
+                    rig.object3D.position.addScaledVector(right,dx*0.05*speed);
                 });
-            }
-        });
+            }});
 
         // Snap-turn joystick gauche
-        AFRAME.registerComponent('snap-turn', {
-            schema: { angle: { type:'number', default:30 }, cooldown: { type:'number', default:300 } },
-            init: function () {
-                const rig = this.el;
-                const leftHand = rig.querySelector('#leftHand');
-                let lastTurn = 0;
-                const angleRad = THREE.MathUtils.degToRad(this.data.angle);
-                leftHand.addEventListener('thumbstickmoved', evt => {
-                    const now = Date.now(), x=evt.detail.x;
-                    if (Math.abs(x)<0.8 || now-lastTurn<this.data.cooldown) return;
-                    rig.object3D.rotation.y += (x>0.8?-angleRad:angleRad);
-                    lastTurn = now;
+        AFRAME.registerComponent('snap-turn',{schema:{angle:{type:'number',default:30},cooldown:{type:'number',default:300}},init:function(){
+                const rig=this.el,leftHand=rig.querySelector('#leftHand');let lastTurn=0;
+                const angleRad=THREE.MathUtils.degToRad(this.data.angle);
+                leftHand.addEventListener('thumbstickmoved',evt=>{
+                    const now=Date.now(),x=evt.detail.x;
+                    if(Math.abs(x)<0.8 || now-lastTurn<this.data.cooldown) return;
+                    rig.object3D.rotation.y+=(x>0.8?-angleRad:angleRad);
+                    lastTurn=now;
                 });
-            }
-        });
+            }});
 
         // Tir projectile
-        AFRAME.registerComponent('shoot', {
-            schema: { cooldown: {type:'int', default:1500}, speed: {type:'number', default:15} },
-            init: function() {
-                const gun = this.el;
-                const rightHand = document.querySelector('#rightHand');
-                let canShoot = true;
+        AFRAME.registerComponent('shoot',{schema:{cooldown:{type:'int',default:1500},speed:{type:'number',default:15}},init:function(){
+                const gun=this.el,rightHand=document.querySelector('#rightHand');let canShoot=true;
 
-                function getForwardVector(el) {
-                    const vec = new THREE.Vector3(0,0,-1);
+                function getForwardVector(el){
+                    const vec=new THREE.Vector3(0,0,-1);
                     vec.applyQuaternion(el.object3D.getWorldQuaternion(new THREE.Quaternion()));
                     return vec.normalize();
                 }
 
-                rightHand.addEventListener('triggerdown', () => {
-                    if (!canShoot) return;
-                    if (gun.parentEl !== rightHand) return;
-                    const loaded = gun.querySelector('#loadedProjectile');
-                    if (!loaded) return;
+                rightHand.addEventListener('triggerdown',()=>{
+                    if(!canShoot) return;
+                    if(gun.parentEl!==rightHand) return;
+                    const loaded=gun.querySelector('#loadedProjectile');
+                    if(!loaded) return;
 
-                    canShoot = false;
-                    const spawnPos = new THREE.Vector3();
+                    canShoot=false;
+
+                    const spawnPos=new THREE.Vector3();
                     loaded.object3D.getWorldPosition(spawnPos);
 
-                    const p = document.createElement('a-entity');
-                    p.setAttribute('gltf-model','url(projectile.glb)');
-                    p.setAttribute('scale','0.2 0.2 0.2');
-                    p.setAttribute('position',`${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`);
-                    p.setAttribute('flat-shading','');
-                    gun.sceneEl.appendChild(p);
+                    const projectile=document.createElement('a-entity');
+                    projectile.setAttribute('gltf-model','url(projectile.glb)');
+                    projectile.setAttribute('scale','0.2 0.2 0.2');
+                    projectile.setAttribute('position',`${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`);
+                    projectile.setAttribute('flat-shading','');
+                    gun.sceneEl.appendChild(projectile);
 
-                    // Physique du projectile
-                    p.addEventListener('model-loaded',()=>{
-                        p.setAttribute('dynamic-body','mass:0.2; shape:sphere; sphereRadius:0.05');
+                    // Physique après model loaded
+                    projectile.addEventListener('model-loaded',()=>{
+                        projectile.setAttribute('dynamic-body','mass:0.2; shape:sphere; sphereRadius:0.05');
                     });
 
-                    const velocity = getForwardVector(gun).multiplyScalar(this.data.speed);
-                    p.addEventListener('body-loaded',()=>{
-                        if(p.body) { p.body.velocity.set(velocity.x, velocity.y, velocity.z); if(p.body.wakeUp) p.body.wakeUp(); }
+                    const velocity=getForwardVector(gun).multiplyScalar(this.data.speed);
+                    projectile.addEventListener('body-loaded',()=>{
+                        if(projectile.body){ projectile.body.velocity.set(velocity.x,velocity.y,velocity.z); if(projectile.body.wakeUp) projectile.body.wakeUp(); }
                     });
 
-                    loaded.setAttribute('visible','false');
-                    setTimeout(()=>{ if(p.parentNode) p.parentNode.removeChild(p); },5000);
-                    setTimeout(()=>{ loaded.setAttribute('visible','true'); canShoot=true; }, this.data.cooldown);
+                    // Reset projectile sur le gun
+                    loaded.setAttribute('visible','true');
+
+                    // Supprime la balle après 5s
+                    setTimeout(()=>{ if(projectile.parentNode) projectile.parentNode.removeChild(projectile); },5000);
+                    setTimeout(()=>{ canShoot=true; },this.data.cooldown);
                 });
-            }
-        });
+            });
 
         document.addEventListener('DOMContentLoaded',()=>{
-            const gun = document.querySelector('#gun');
+            const gun=document.querySelector('#gun');
             if(gun && !gun.components.shoot) gun.setAttribute('shoot','cooldown:1500; speed:15');
         });
-
     </script>
 </a-scene>
 </body>
