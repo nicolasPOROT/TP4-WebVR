@@ -3,10 +3,9 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TP4 - WebVR - Exercice 3 (pistolet + projectiles)</title>
+    <title>TP4 - WebVR - Pistolet amélioré (grab + cooldown + projectile attaché)</title>
 
     <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
-    <script>delete AFRAME.components["grabbable"];</script>
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.5.2/dist/aframe-extras.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@c-frame/aframe-physics-system@4.1.0/dist/aframe-physics-system.min.js"></script>
     <script src="https://unpkg.com/super-hands@3.0.5/dist/super-hands.min.js"></script>
@@ -16,7 +15,7 @@
 <a-scene shadow="type: pcfsoft" renderer="antialias: true" physics="gravity: -9.8; debug: false" background="color: #88ccee">
 
     <a-assets>
-        <!-- Mets ici les bons chemins vers tes modèles -->
+        <!-- Remplace les chemins si nécessaire -->
         <a-asset-item id="pistolModel" src="pistol.glb"></a-asset-item>
         <a-asset-item id="projModel" src="projectile.glb"></a-asset-item>
     </a-assets>
@@ -28,7 +27,7 @@
     <!-- Ground -->
     <a-plane rotation="-90 0 0" width="30" height="30" color="#7BC8A4" shadow="receive: true" position="0 0 0" static-body></a-plane>
 
-    <!-- Grabbables (exemples existants) -->
+    <!-- Exemples d'objets grabbables (inchangés) -->
     <a-box class="grabbable" position="-1 1 -3" rotation="0 45 0" depth="1" height="1" width="1" color="#4CC3D9"
            shadow="cast: true; receive: true"
            grabbable="usePhysics: only" dynamic-body="mass:1; shape:box"></a-box>
@@ -67,18 +66,23 @@
     <!-- Stand / support pour le pistolet (pose initiale) -->
     <a-box id="pistolStand" position="-0.6 0.25 -1.8" width="0.5" height="0.5" depth="0.5" color="#6A6A6A" static-body></a-box>
 
-    <!-- Pistolet posé sur le cube, saisissable -->
+    <!-- Pistolet posé sur le cube, saisissable. Important: garde 'grabbable' pour que super-hands puisse le prendre. -->
     <a-entity id="pistol"
               class="grabbable"
               gltf-model="#pistolModel"
               position="-0.6 0.65 -1.8"
-              rotation="0 0 90"
-              scale="0.1 0.1 0.1"
+              rotation="0 90 0"
+              scale="0.8 0.8 0.8"
               shadow="cast: true; receive: true"
               grabbable="usePhysics: false"
-              pistol-shooter="projModel: #projModel; speed: 18; mass: 0.12; lifetime: 6000">
-        <!-- point de sortie du projectile (ajuste la position selon ton modèle) -->
+              pistol-grab
+              pistol-shooter="projModel: #projModel; speed: 18; mass: 0.12; lifetime: 6000; cooldown: 400">
+
+        <!-- Muzzle: point de sortie - ajuste la position selon ton modèle 3D -->
         <a-entity id="muzzle" position="0 0 0.6"></a-entity>
+
+        <!-- Projectile chargé initialement dans le canon (sera détaché et physiqué au tir) -->
+        <a-entity class="loadedProjectile" gltf-model="#projModel" position="0 0 0.45" scale="0.35 0.35 0.35"></a-entity>
     </a-entity>
 
     <!-- Déplacement joystick droit + snap-turn composants (inchangés) -->
@@ -131,119 +135,244 @@
         });
     </script>
 
-    <!-- COMPONENT: pistol-shooter -->
+    <!-- COMPONENT: pistol-grab -->
+    <script>
+        AFRAME.registerComponent('pistol-grab', {
+            schema: {
+                // offsets optionnels si tu veux que le pistolet soit "tenu" avec un offset visuel
+                attachPosition: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
+                attachRotation: { type: 'vec3', default: { x: 0, y: 0, z: 0 } }
+            },
+            init: function () {
+                this._origParent = null;
+                this._handEl = null;
+                this._onGrabStart = this._onGrabStart.bind(this);
+                this._onGrabEnd = this._onGrabEnd.bind(this);
+                this.el.addEventListener('grab-start', this._onGrabStart);
+                this.el.addEventListener('grab-end', this._onGrabEnd);
+            },
+            _onGrabStart: function (evt) {
+                // evt.detail.hand / handEl selon les versions
+                const hand = (evt.detail && (evt.detail.hand || evt.detail.handEl || evt.detail.handEntity)) || null;
+                if (!hand) return;
+                this._handEl = hand;
+
+                // Sauvegarde du parent précédent
+                this._origParent = this.el.parentNode || this.el.sceneEl;
+
+                // calculer transform monde actuelle
+                const worldPos = new THREE.Vector3();
+                const worldQuat = new THREE.Quaternion();
+                this.el.object3D.getWorldPosition(worldPos);
+                this.el.object3D.getWorldQuaternion(worldQuat);
+
+                // attacher DOM à la main
+                hand.appendChild(this.el);
+
+                // calculer position locale (main) correspondante
+                const localPos = worldPos.clone();
+                hand.object3D.worldToLocal(localPos);
+
+                // calculer quaternion local
+                const handQuat = new THREE.Quaternion();
+                hand.object3D.getWorldQuaternion(handQuat);
+                const handQuatInv = handQuat.clone().invert();
+                const localQuat = handQuatInv.multiply(worldQuat);
+
+                // appliquer pos/quat locale
+                this.el.object3D.position.copy(localPos);
+                this.el.object3D.quaternion.copy(localQuat);
+
+                // appliquer offset si demandé (petit ajustement pour la prise)
+                if (this.data.attachPosition) {
+                    this.el.object3D.position.add(new THREE.Vector3(this.data.attachPosition.x, this.data.attachPosition.y, this.data.attachPosition.z));
+                }
+                if (this.data.attachRotation) {
+                    const offsetEuler = new THREE.Euler(
+                        THREE.MathUtils.degToRad(this.data.attachRotation.x),
+                        THREE.MathUtils.degToRad(this.data.attachRotation.y),
+                        THREE.MathUtils.degToRad(this.data.attachRotation.z),
+                        'YXZ'
+                    );
+                    const offsetQuat = new THREE.Quaternion().setFromEuler(offsetEuler);
+                    this.el.object3D.quaternion.multiply(offsetQuat);
+                }
+            },
+            _onGrabEnd: function (evt) {
+                // restore world transform but reparent to original parent
+                const worldPos = new THREE.Vector3();
+                const worldQuat = new THREE.Quaternion();
+                this.el.object3D.getWorldPosition(worldPos);
+                this.el.object3D.getWorldQuaternion(worldQuat);
+
+                const parent = this._origParent || this.el.sceneEl;
+                parent.appendChild(this.el);
+
+                // convertir world -> parent local
+                parent.object3D.worldToLocal(worldPos);
+                this.el.object3D.position.copy(worldPos);
+
+                const parentQuat = new THREE.Quaternion();
+                parent.object3D.getWorldQuaternion(parentQuat);
+                const parentQuatInv = parentQuat.clone().invert();
+                const localQuat = parentQuatInv.multiply(worldQuat);
+                this.el.object3D.quaternion.copy(localQuat);
+
+                this._handEl = null;
+                this._origParent = null;
+            },
+            remove: function () {
+                this.el.removeEventListener('grab-start', this._onGrabStart);
+                this.el.removeEventListener('grab-end', this._onGrabEnd);
+            }
+        });
+    </script>
+
+    <!-- COMPONENT: pistol-shooter (cooldown + projectile detach & physics) -->
     <script>
         AFRAME.registerComponent('pistol-shooter', {
             schema: {
-                projModel: {type: 'selector'}, // référence au modèle du projectile dans assets
-                speed: {type: 'number', default: 15}, // vitesse initiale (m/s-ish)
-                mass: {type: 'number', default: 0.1}, // masse du projectile
-                lifetime: {type: 'number', default: 5000} // durée de vie en ms avant suppression
+                projModel: { type: 'selector' },
+                speed: { type: 'number', default: 15 },
+                mass: { type: 'number', default: 0.1 },
+                lifetime: { type: 'number', default: 5000 },
+                cooldown: { type: 'number', default: 300 }
             },
             init: function () {
                 this.hand = null;
-                this.shootBound = this.shoot.bind(this);
-                const el = this.el;
+                this.shootBound = this._onTriggerDown.bind(this);
+                this._lastShot = 0;
 
-                // quand le pistolet est saisi → super-hands émet 'grab-start' sur l'entité saisie
-                el.addEventListener('grab-start', (evt) => {
-                    // evt.detail.hand contient normalement la main (controller) qui a saisi
-                    const hand = evt.detail && (evt.detail.hand || evt.detail.handEl || evt.detail.handEl || evt.detail.handEl);
-                    // si pas présent, fallback au target du event
-                    this.hand = hand || evt.target.parentEl || null;
-
+                this.el.addEventListener('grab-start', (evt) => {
+                    const hand = (evt.detail && (evt.detail.hand || evt.detail.handEl || evt.detail.handEntity)) || null;
+                    this.hand = hand;
                     if (this.hand) {
-                        // écoutons la gâchette (triggerdown)
                         this.hand.addEventListener('triggerdown', this.shootBound);
-                        // Optionnel: support pour les contrôleurs Oculus / webxr legacy
-                        this.hand.addEventListener('abuttondown', this.shootBound);
                     }
                 });
-
-                el.addEventListener('grab-end', (evt) => {
-                    const hand = evt.detail && (evt.detail.hand || evt.detail.handEl);
-                    const actualHand = hand || this.hand;
-                    if (actualHand) {
-                        actualHand.removeEventListener('triggerdown', this.shootBound);
-                        actualHand.removeEventListener('abuttondown', this.shootBound);
+                this.el.addEventListener('grab-end', (evt) => {
+                    const hand = (evt.detail && (evt.detail.hand || evt.detail.handEl || evt.detail.handEntity)) || this.hand;
+                    if (hand) {
+                        hand.removeEventListener('triggerdown', this.shootBound);
                     }
                     this.hand = null;
                 });
             },
 
-            shoot: function () {
-                const scene = this.el.sceneEl;
-                const muzzle = this.el.querySelector('#muzzle') || this.el; // fallback
-                const data = this.data;
+            _onTriggerDown: function () {
+                const now = Date.now();
+                if (now - this._lastShot < this.data.cooldown) return; // still cooling
+                this._lastShot = now;
 
-                // calculer position et direction monde du muzzle
-                const muzzleWorldPos = new THREE.Vector3();
-                const muzzleWorldQuat = new THREE.Quaternion();
-                muzzle.object3D.getWorldPosition(muzzleWorldPos);
-                muzzle.object3D.getWorldQuaternion(muzzleWorldQuat);
-
-                // direction avant locale Z- (A-Frame forward = -Z)
-                const forward = new THREE.Vector3(0, 0, -1);
-                forward.applyQuaternion(muzzleWorldQuat).normalize();
-
-                // créer l'entité projectile
-                const proj = document.createElement('a-entity');
-                if (data.projModel) {
-                    // si on a passé un selector vers un <a-asset-item> on utilise gltf-model
-                    proj.setAttribute('gltf-model', '#' + data.projModel.id);
+                // cherches le projectile chargé sur le pistolet
+                const loaded = this.el.querySelector('.loadedProjectile');
+                if (loaded) {
+                    this._fireAttachedProjectile(loaded);
                 } else {
-                    // fallback : simple sphere
-                    proj.setAttribute('geometry', 'primitive: sphere; radius: 0.05');
-                    proj.setAttribute('material', 'color: #FFAA00');
+                    // pas de projectile chargé -> spawn nouveau projectile pour le tir
+                    this._spawnAndFire();
                 }
 
-                // positionner légèrement en avant pour éviter collision immédiate avec le pistolet
-                const spawnPos = {
-                    x: muzzleWorldPos.x + forward.x * 0.08,
-                    y: muzzleWorldPos.y + forward.y * 0.08,
-                    z: muzzleWorldPos.z + forward.z * 0.08
-                };
-                proj.setAttribute('position', `${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`);
+                // rechargement immédiat : on attache un nouveau projectile visuel au pistolet
+                this._createLoadedProjectile();
+            },
 
-                // orientation alignée sur la direction
-                const euler = new THREE.Euler().setFromQuaternion(muzzleWorldQuat, 'YXZ');
-                proj.setAttribute('rotation', `${THREE.MathUtils.radToDeg(euler.x)} ${THREE.MathUtils.radToDeg(euler.y)} ${THREE.MathUtils.radToDeg(euler.z)}`);
+            _getMuzzleWorld: function () {
+                const muzzle = this.el.querySelector('#muzzle') || this.el;
+                const pos = new THREE.Vector3();
+                const quat = new THREE.Quaternion();
+                muzzle.object3D.getWorldPosition(pos);
+                muzzle.object3D.getWorldQuaternion(quat);
+                return { pos, quat };
+            },
 
-                // physique : dynamic-body. On choisit mass et shape par défaut (box/sphere)
-                // Utilise shape: sphere quand le modèle a des volumes simples
-                proj.setAttribute('dynamic-body', `mass: ${data.mass}; shape: sphere`);
-                proj.setAttribute('class', 'projectile');
+            _fireAttachedProjectile: function (projEl) {
+                // calcule transform monde avant détachement
+                const worldPos = new THREE.Vector3();
+                const worldQuat = new THREE.Quaternion();
+                projEl.object3D.getWorldPosition(worldPos);
+                projEl.object3D.getWorldQuaternion(worldQuat);
 
-                // optionnel : petit scale si nécessaire
-                proj.setAttribute('scale', '0.6 0.6 0.6');
+                // détach du pistolet et attache à la scène
+                const scene = this.el.sceneEl;
+                scene.appendChild(projEl);
 
-                // ajouter au scène
-                scene.appendChild(proj);
+                // appliquer transform monde (dans la scène, coords = monde)
+                projEl.object3D.position.copy(worldPos);
+                projEl.object3D.quaternion.copy(worldQuat);
 
-                // Quand le body est prêt (body-loaded), on applique la vélocité initiale / impulsion
-                const applyInitial = () => {
-                    if (!proj.body) {
-                        // safety, si body pas encore disponible on retente légèrement plus tard
-                        setTimeout(applyInitial, 10);
+                // activer la physique
+                projEl.setAttribute('dynamic-body', `mass: ${this.data.mass}; shape: sphere`);
+                projEl.classList.remove('loadedProjectile');
+
+                // direction du tir (depuis le muzzle)
+                const { pos: muzzlePos, quat: muzzleQuat } = this._getMuzzleWorld();
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(muzzleQuat).normalize();
+
+                // appliquer vélocité quand body est prêt
+                const applyVelocity = () => {
+                    if (!projEl.body) {
+                        setTimeout(applyVelocity, 10);
                         return;
                     }
-                    // mettre la vélocité initiale
-                    const v = new CANNON.Vec3(forward.x * this.data.speed, forward.y * this.data.speed, forward.z * this.data.speed);
-                    proj.body.velocity.set(v.x, v.y, v.z);
-                    // option: petite rotation/twirl
-                    proj.body.angularVelocity.set(Math.random()*2-1, Math.random()*2-1, Math.random()*2-1);
+                    // set velocity
+                    projEl.body.velocity.set(forward.x * this.data.speed, forward.y * this.data.speed, forward.z * this.data.speed);
+                    // give a bit of spin
+                    projEl.body.angularVelocity.set(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1);
                 };
-                proj.addEventListener('body-loaded', applyInitial);
-                // cas body-loaded déjà créé rapidement
-                setTimeout(applyInitial, 0);
+                projEl.addEventListener('body-loaded', applyVelocity);
+                setTimeout(applyVelocity, 0);
 
-                // supprimer après un certain temps pour éviter fuite mémoire
+                // cleanup après lifetime
                 setTimeout(() => {
-                    if (proj.parentNode) proj.parentNode.removeChild(proj);
+                    if (projEl.parentNode) projEl.parentNode.removeChild(projEl);
                 }, this.data.lifetime);
+            },
+
+            _spawnAndFire: function () {
+                // fallback: si aucun projectile chargé, on crÃ©e un nouveau projectile et on le tire
+                const scene = this.el.sceneEl;
+                const proj = document.createElement('a-entity');
+                if (this.data.projModel) proj.setAttribute('gltf-model', '#' + this.data.projModel.id);
+                else proj.setAttribute('geometry', 'primitive: sphere; radius: 0.05');
+
+                const { pos: muzzlePos, quat: muzzleQuat } = this._getMuzzleWorld();
+                proj.object3D.position.copy(muzzlePos);
+                proj.object3D.quaternion.copy(muzzleQuat);
+                proj.setAttribute('scale', '0.35 0.35 0.35');
+                scene.appendChild(proj);
+
+                proj.setAttribute('dynamic-body', `mass: ${this.data.mass}; shape: sphere`);
+
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(muzzleQuat).normalize();
+                const applyVelocity = () => {
+                    if (!proj.body) { setTimeout(applyVelocity, 10); return; }
+                    proj.body.velocity.set(forward.x * this.data.speed, forward.y * this.data.speed, forward.z * this.data.speed);
+                };
+                proj.addEventListener('body-loaded', applyVelocity);
+                setTimeout(applyVelocity, 0);
+
+                setTimeout(() => { if (proj.parentNode) proj.parentNode.removeChild(proj); }, this.data.lifetime);
+            },
+
+            _createLoadedProjectile: function () {
+                // enlÃ¨ve d'abord d'Ã©ventuelles anciennes munitions visuelles
+                const existing = this.el.querySelectorAll('.loadedProjectile');
+                existing.forEach(e => { if (e && e.parentNode) e.parentNode.removeChild(e); });
+
+                // crÃ©e un nouveau projectile visuel attachÃ© au pistolet
+                const newLoaded = document.createElement('a-entity');
+                if (this.data.projModel) newLoaded.setAttribute('gltf-model', '#' + this.data.projModel.id);
+                else newLoaded.setAttribute('geometry', 'primitive: sphere; radius: 0.05');
+                newLoaded.classList.add('loadedProjectile');
+                // position locale devant le canon (ajuste selon ton modèle)
+                newLoaded.setAttribute('position', '0 0 0.45');
+                newLoaded.setAttribute('scale', '0.35 0.35 0.35');
+                this.el.appendChild(newLoaded);
             }
         });
     </script>
+
 </a-scene>
 </body>
 </html>
