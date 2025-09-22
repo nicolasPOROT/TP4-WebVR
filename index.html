@@ -20,10 +20,10 @@
     <a-entity light="type: ambient; intensity: 0.8"></a-entity>
 
     <!-- Ground -->
-    <a-plane rotation="-90 0 0" width="30" height="30" color="#7BC8A4" shadow="receive: true" static-body></a-plane>
+    <a-plane rotation="-90 0 0" width="30" height="30" color="#7BC8A4" shadow="receive: true" position="0 0 0" static-body></a-plane>
 
-    <!-- Exemple objets grabbables -->
-    <a-box class="grabbable" position="-1 1 -3" rotation="0 45 0" depth="1" height="1" width="1" color="#4CC3D9"
+    <!-- Grabbables -->
+    <a-box id="cube" class="grabbable" position="-1 1 -3" rotation="0 45 0" depth="1" height="1" width="1" color="#4CC3D9"
            shadow="cast: true; receive: true"
            grabbable="usePhysics: only" dynamic-body="mass:1; shape:box"></a-box>
 
@@ -35,134 +35,152 @@
                 shadow="cast: true; receive: true"
                 grabbable="usePhysics: only" dynamic-body="mass:0.75; shape:cylinder"></a-cylinder>
 
-    <!-- Pistolet sur la table -->
-    <a-entity id="gun" class="grabbable"
-              gltf-model="url(pistol.glb)"
-              scale="0.05 0.05 0.05"
-              position="-1 2 -3"
-              rotation="0 0 180"
-              grabbable="startButtons: gripdown; endButtons: gripup; usePhysics: true; attach: #handAttach"
-              dynamic-body="mass:0.6; shape:box">
-        <!-- Point d'attache main -->
-        <a-entity id="handAttach" position="0 -0.1 0"></a-entity>
-        <!-- Projectile visible sur le pistolet -->
-        <a-entity id="loadedProjectile"
-                  gltf-model="url(projectile.glb)"
-                  scale="0.2 0.2 0.2"
-                  position="0 0.5 0"
-                  flat-shading></a-entity>
-    </a-entity>
+    <!-- Pistolet posé sur le cube -->
+    <a-box id="gun" class="grabbable" position="-1 1.6 -3" rotation="0 0 0"
+           depth="0.3" height="0.05" width="0.1" color="#333333"
+           shadow="cast: true; receive: true"
+           grabbable="usePhysics: only; startButtons: gripdown, squeezestart; endButtons: gripup, squeezeend"
+           dynamic-body="mass:0.5; shape:box"></a-box>
 
-    <!-- Camera rig + mains -->
+    <!-- Camera rig + controllers -->
     <a-entity id="rig" position="0 1 0" joystick-movement="speed:2" snap-turn="angle:30; cooldown:300">
         <a-entity id="camera" camera look-controls position="0 1.6 0"></a-entity>
 
+        <!-- Left hand → Snap-turn -->
         <a-entity id="leftHand"
                   hand-controls="hand: left; handModelStyle: highPoly; color:#ffcccc"
                   sphere-collider="objects: .grabbable"
                   super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
-                  static-body="shape: sphere; sphereRadius:0.03"></a-entity>
+                  static-body="shape: sphere; sphereRadius:0.03">
+        </a-entity>
 
+        <!-- Right hand → Déplacement + arme -->
         <a-entity id="rightHand"
                   hand-controls="hand: right; handModelStyle: highPoly; color:#ffcccc"
                   sphere-collider="objects: .grabbable"
                   super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
-                  static-body="shape: sphere; sphereRadius:0.03"></a-entity>
+                  static-body="shape: sphere; sphereRadius:0.03">
+        </a-entity>
     </a-entity>
 
     <a-sky color="#c4f6ff"></a-sky>
 
+    <!-- Scripts -->
     <script>
-        // Flat shading low-poly
-        AFRAME.registerComponent('flat-shading', {
+        // Déplacement rig avec joystick droit
+        AFRAME.registerComponent('joystick-movement', {
+            schema: { speed: { type: 'number', default: 2 } },
             init: function () {
-                this.el.addEventListener('model-loaded', () => {
-                    this.el.object3D.traverse(node => {
-                        if (node.isMesh && node.material) {
-                            if (Array.isArray(node.material)) node.material.forEach(m => { m.flatShading=true; m.needsUpdate=true; });
-                            else { node.material.flatShading=true; node.material.needsUpdate=true; }
-                        }
-                    });
+                const rig = this.el;
+                const head = rig.querySelector('#camera');
+                const rightHand = rig.querySelector('#rightHand');
+                const DEADZONE = 0.1;
+                const speed = this.data.speed;
+
+                rightHand.addEventListener('thumbstickmoved', evt => {
+                    const dx = evt.detail.x, dy = evt.detail.y;
+                    if(Math.abs(dx)<DEADZONE && Math.abs(dy)<DEADZONE) return;
+
+                    const forward = new THREE.Vector3();
+                    head.object3D.getWorldDirection(forward);
+                    forward.y=0; forward.normalize();
+
+                    const right = new THREE.Vector3();
+                    right.crossVectors(forward, new THREE.Vector3(0,1,0)).negate();
+
+                    const rigPos = rig.object3D.position;
+                    rigPos.addScaledVector(forward, dy*0.05*speed);
+                    rigPos.addScaledVector(right, dx*0.05*speed);
                 });
             }
         });
-        document.addEventListener('DOMContentLoaded',()=>{document.querySelectorAll('[gltf-model]').forEach(el=>el.setAttribute('flat-shading',''));});
-
-        // Déplacement rig
-        AFRAME.registerComponent('joystick-movement',{schema:{speed:{type:'number',default:2}},init:function(){
-                const rig=this.el,head=rig.querySelector('#camera'),rightHand=rig.querySelector('#rightHand'),DEADZONE=0.1,speed=this.data.speed;
-                rightHand.addEventListener('thumbstickmoved',evt=>{
-                    const dx=evt.detail.x,dy=evt.detail.y;
-                    if(Math.abs(dx)<DEADZONE && Math.abs(dy)<DEADZONE) return;
-                    const forward=new THREE.Vector3();head.object3D.getWorldDirection(forward);forward.y=0;forward.normalize();
-                    const right=new THREE.Vector3();right.crossVectors(forward,new THREE.Vector3(0,1,0)).negate();
-                    rig.object3D.position.addScaledVector(forward,dy*0.05*speed);
-                    rig.object3D.position.addScaledVector(right,dx*0.05*speed);
-                });
-            }});
 
         // Snap-turn joystick gauche
-        AFRAME.registerComponent('snap-turn',{schema:{angle:{type:'number',default:30},cooldown:{type:'number',default:300}},init:function(){
-                const rig=this.el,leftHand=rig.querySelector('#leftHand');let lastTurn=0;
-                const angleRad=THREE.MathUtils.degToRad(this.data.angle);
-                leftHand.addEventListener('thumbstickmoved',evt=>{
-                    const now=Date.now(),x=evt.detail.x;
+        AFRAME.registerComponent('snap-turn', {
+            schema: { angle:{type:'number', default:30}, cooldown:{type:'number', default:300} },
+            init: function () {
+                const rig = this.el;
+                const leftHand = rig.querySelector('#leftHand');
+                let lastTurn = 0;
+                const angleRad = THREE.MathUtils.degToRad(this.data.angle);
+
+                leftHand.addEventListener('thumbstickmoved', evt => {
+                    const now = Date.now(), x=evt.detail.x;
                     if(Math.abs(x)<0.8 || now-lastTurn<this.data.cooldown) return;
-                    rig.object3D.rotation.y+=(x>0.8?-angleRad:angleRad);
-                    lastTurn=now;
+                    if(x>0.8) rig.object3D.rotation.y -= angleRad;
+                    else rig.object3D.rotation.y += angleRad;
+                    lastTurn = now;
                 });
-            }});
+            }
+        });
 
-        // Tir projectile
-        AFRAME.registerComponent('shoot',{schema:{cooldown:{type:'int',default:1500},speed:{type:'number',default:15}},init:function(){
-                const gun=this.el,rightHand=document.querySelector('#rightHand');let canShoot=true;
+        // Gestion du tir avec cooldown et physique adaptée
+        AFRAME.registerComponent('shoot', {
+            schema: { cooldown: { type:'number', default:500 } }, // ms
+            init: function () {
+                const gun = this.el;
+                let lastShot = 0;
 
-                function getForwardVector(el){
-                    const vec=new THREE.Vector3(0,0,-1);
-                    vec.applyQuaternion(el.object3D.getWorldQuaternion(new THREE.Quaternion()));
-                    return vec.normalize();
-                }
+                gun.addEventListener('triggerdown', () => {
+                    const now = Date.now();
+                    if(now - lastShot < this.data.cooldown) return;
+                    lastShot = now;
 
-                rightHand.addEventListener('triggerdown',()=>{
-                    if(!canShoot) return;
-                    if(gun.parentEl!==rightHand) return;
-                    const loaded=gun.querySelector('#loadedProjectile');
-                    if(!loaded) return;
+                    const ball = document.createElement('a-box'); // Même physique que cube
+                    const handPos = new THREE.Vector3();
+                    gun.object3D.getWorldPosition(handPos);
+                    ball.setAttribute('position', handPos);
+                    ball.setAttribute('depth', 0.3);
+                    ball.setAttribute('height', 0.3);
+                    ball.setAttribute('width', 0.3);
+                    ball.setAttribute('color', '#222222');
+                    ball.setAttribute('dynamic-body', 'mass:1; shape:box');
 
-                    canShoot=false;
+                    // Direction exacte du pistolet
+                    const forward = new THREE.Vector3(0,0,-1);
+                    const matrixWorld = gun.object3D.matrixWorld;
+                    forward.applyMatrix4(matrixWorld);
+                    forward.sub(handPos).normalize();
 
-                    const spawnPos=new THREE.Vector3();
-                    loaded.object3D.getWorldPosition(spawnPos);
+                    const speed = 10;
+                    forward.multiplyScalar(speed);
 
-                    const projectile=document.createElement('a-entity');
-                    projectile.setAttribute('gltf-model','url(projectile.glb)');
-                    projectile.setAttribute('scale','0.2 0.2 0.2');
-                    projectile.setAttribute('position',`${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`);
-                    projectile.setAttribute('flat-shading','');
-                    gun.sceneEl.appendChild(projectile);
-
-                    // Physique après model loaded
-                    projectile.addEventListener('model-loaded',()=>{
-                        projectile.setAttribute('dynamic-body','mass:0.2; shape:sphere; sphereRadius:0.05');
+                    ball.addEventListener('body-loaded', () => {
+                        ball.body.applyImpulse(
+                            new CANNON.Vec3(forward.x, forward.y, forward.z),
+                            new CANNON.Vec3().copy(ball.body.position)
+                        );
                     });
 
-                    const velocity=getForwardVector(gun).multiplyScalar(this.data.speed);
-                    projectile.addEventListener('body-loaded',()=>{
-                        if(projectile.body){ projectile.body.velocity.set(velocity.x,velocity.y,velocity.z); if(projectile.body.wakeUp) projectile.body.wakeUp(); }
-                    });
-
-                    // Reset projectile sur le gun
-                    loaded.setAttribute('visible','true');
-
-                    // Supprime la balle après 5s
-                    setTimeout(()=>{ if(projectile.parentNode) projectile.parentNode.removeChild(projectile); },5000);
-                    setTimeout(()=>{ canShoot=true; },this.data.cooldown);
+                    setTimeout(() => ball.parentNode && ball.parentNode.removeChild(ball), 3000);
+                    document.querySelector('a-scene').appendChild(ball);
                 });
+            }
+        });
+
+        // Attache le shoot au pistolet
+        document.addEventListener('DOMContentLoaded', () => {
+            const gun = document.querySelector('#gun');
+            gun.setAttribute('shoot', '');
+        });
+
+        // Lorsque l'utilisateur prend le pistolet, il est attaché à la main
+        document.addEventListener('DOMContentLoaded', () => {
+            const gun = document.querySelector('#gun');
+            gun.addEventListener('grab-start', evt => {
+                const hand = evt.detail.hand;
+                hand.appendChild(gun);
+                gun.setAttribute('position', '0 -0.05 -0.1'); // position relative main
+                gun.setAttribute('rotation', '0 0 0');
             });
 
-        document.addEventListener('DOMContentLoaded',()=>{
-            const gun=document.querySelector('#gun');
-            if(gun && !gun.components.shoot) gun.setAttribute('shoot','cooldown:1500; speed:15');
+            gun.addEventListener('grab-end', evt => {
+                // remet le pistolet sur le sol/cube si relâché
+                const cube = document.querySelector('#cube');
+                cube.appendChild(gun);
+                gun.setAttribute('position', '0 0.6 0'); // légèrement au-dessus du cube
+                gun.setAttribute('rotation', '0 0 0');
+            });
         });
     </script>
 </a-scene>
