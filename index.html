@@ -10,7 +10,6 @@
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.5.2/dist/aframe-extras.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@c-frame/aframe-physics-system@4.1.0/dist/aframe-physics-system.min.js"></script>
     <script src="https://unpkg.com/super-hands@3.0.5/dist/super-hands.min.js"></script>
-
     <style>body { margin:0 }</style>
 </head>
 <body>
@@ -21,9 +20,9 @@
     <a-entity light="type: ambient; intensity: 0.8"></a-entity>
 
     <!-- Ground -->
-    <a-plane rotation="-90 0 0" width="30" height="30" color="#7BC8A4" shadow="receive: true" position="0 0 0" static-body></a-plane>
+    <a-plane rotation="-90 0 0" width="30" height="30" color="#7BC8A4" shadow="receive: true" static-body></a-plane>
 
-    <!-- Exemple objets grabbables -->
+    <!-- Objets grabbables -->
     <a-box class="grabbable" position="-1 1 -3" rotation="0 45 0" depth="1" height="1" width="1" color="#4CC3D9"
            shadow="cast: true; receive: true"
            grabbable="usePhysics: only" dynamic-body="mass:1; shape:box"></a-box>
@@ -36,19 +35,20 @@
                 shadow="cast: true; receive: true"
                 grabbable="usePhysics: only" dynamic-body="mass:0.75; shape:cylinder"></a-cylinder>
 
-    <!-- Pistolet posé sur une table -->
+    <!-- Pistolet initial sur table -->
     <a-entity id="gun" class="grabbable"
               gltf-model="url(pistol.glb)"
               scale="0.05 0.05 0.05"
               position="-1 2 -3"
               rotation="0 0 180"
-              grabbable="startButtons: gripdown; endButtons: gripup; usePhysics: false"
+              grabbable="startButtons: gripdown; endButtons: gripup; usePhysics: true"
               dynamic-body="mass:0.6; shape:box">
-        <!-- Projectile chargé -->
+        <!-- Projectile visible tant que non tiré -->
         <a-entity id="loadedProjectile"
                   gltf-model="url(projectile.glb)"
-                  scale="1 1 1"
-                  position="0 0.5 0"></a-entity>
+                  scale="0.2 0.2 0.2"
+                  position="0 0.5 0"
+                  flat-shading></a-entity>
     </a-entity>
 
     <!-- Camera rig + mains -->
@@ -59,38 +59,32 @@
                   hand-controls="hand: left; handModelStyle: highPoly; color:#ffcccc"
                   sphere-collider="objects: .grabbable"
                   super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
-                  static-body="shape: sphere; sphereRadius:0.03">
-        </a-entity>
+                  static-body="shape: sphere; sphereRadius:0.03"></a-entity>
 
         <a-entity id="rightHand"
                   hand-controls="hand: right; handModelStyle: highPoly; color:#ffcccc"
                   sphere-collider="objects: .grabbable"
                   super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
-                  static-body="shape: sphere; sphereRadius:0.03">
-        </a-entity>
+                  static-body="shape: sphere; sphereRadius:0.03"></a-entity>
     </a-entity>
 
     <a-sky color="#c4f6ff"></a-sky>
 
     <script>
-        // Flat shading pour low-poly
+        // Flat shading low-poly
         AFRAME.registerComponent('flat-shading', {
             init: function () {
                 this.el.addEventListener('model-loaded', () => {
                     this.el.object3D.traverse(node => {
                         if (node.isMesh && node.material) {
-                            if (Array.isArray(node.material)) {
-                                node.material.forEach(m => { m.flatShading = true; m.needsUpdate = true; });
-                            } else {
-                                node.material.flatShading = true;
-                                node.material.needsUpdate = true;
-                            }
+                            if (Array.isArray(node.material)) node.material.forEach(m => { m.flatShading = true; m.needsUpdate = true; });
+                            else { node.material.flatShading = true; node.material.needsUpdate = true; }
                         }
                     });
                 });
             }
         });
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', ()=> {
             document.querySelectorAll('[gltf-model]').forEach(el => el.setAttribute('flat-shading',''));
         });
 
@@ -103,21 +97,13 @@
                 const rightHand = rig.querySelector('#rightHand');
                 const DEADZONE = 0.1;
                 const speed = this.data.speed;
-
                 rightHand.addEventListener('thumbstickmoved', evt => {
                     const dx = evt.detail.x, dy = evt.detail.y;
-                    if (Math.abs(dx) < DEADZONE && Math.abs(dy) < DEADZONE) return;
-
-                    const forward = new THREE.Vector3();
-                    head.object3D.getWorldDirection(forward);
-                    forward.y = 0;
-                    forward.normalize();
-
-                    const right = new THREE.Vector3();
-                    right.crossVectors(forward, new THREE.Vector3(0,1,0)).negate();
-
-                    rig.object3D.position.addScaledVector(forward, dy * 0.05 * speed);
-                    rig.object3D.position.addScaledVector(right, dx * 0.05 * speed);
+                    if (Math.abs(dx)<DEADZONE && Math.abs(dy)<DEADZONE) return;
+                    const forward = new THREE.Vector3(); head.object3D.getWorldDirection(forward); forward.y=0; forward.normalize();
+                    const right = new THREE.Vector3(); right.crossVectors(forward,new THREE.Vector3(0,1,0)).negate();
+                    rig.object3D.position.addScaledVector(forward, dy*0.05*speed);
+                    rig.object3D.position.addScaledVector(right, dx*0.05*speed);
                 });
             }
         });
@@ -130,70 +116,27 @@
                 const leftHand = rig.querySelector('#leftHand');
                 let lastTurn = 0;
                 const angleRad = THREE.MathUtils.degToRad(this.data.angle);
-
                 leftHand.addEventListener('thumbstickmoved', evt => {
-                    const now = Date.now(), x = evt.detail.x;
-                    if (Math.abs(x) < 0.8 || now - lastTurn < this.data.cooldown) return;
-                    rig.object3D.rotation.y += (x > 0.8 ? -angleRad : angleRad);
+                    const now = Date.now(), x=evt.detail.x;
+                    if (Math.abs(x)<0.8 || now-lastTurn<this.data.cooldown) return;
+                    rig.object3D.rotation.y += (x>0.8?-angleRad:angleRad);
                     lastTurn = now;
                 });
             }
         });
 
-        // Gestion grab pistolet + attachement main droite
-        (function setupGunGrab() {
-            const gun = document.querySelector('#gun');
-            if (!gun) return;
-
-            function removePhysicsBody(el) {
-                if (el.body) {
-                    const world = el.sceneEl.systems.physics.world;
-                    if (world) world.removeBody(el.body);
-                    delete el.body;
-                }
-            }
-
-            gun.addEventListener('grab-start', () => {
-                setTimeout(() => {
-                    removePhysicsBody(gun);
-                    gun.removeAttribute('dynamic-body');
-                    const handEl = document.querySelector('#rightHand');
-                    if (gun.parentEl !== handEl) handEl.appendChild(gun);
-                    gun.setAttribute('position', '0 -0.2 0');
-                    gun.setAttribute('rotation', '0 0 180');
-                });
-            });
-
-            gun.addEventListener('grab-end', () => {
-                setTimeout(() => {
-                    const worldPos = new THREE.Vector3();
-                    gun.object3D.getWorldPosition(worldPos);
-                    const worldQuat = new THREE.Quaternion();
-                    gun.object3D.getWorldQuaternion(worldQuat);
-                    const worldEuler = new THREE.Euler().setFromQuaternion(worldQuat, 'XYZ');
-
-                    gun.sceneEl.appendChild(gun);
-                    gun.setAttribute('position', `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
-                    gun.setAttribute('rotation',
-                        `${THREE.MathUtils.radToDeg(worldEuler.x)} ${THREE.MathUtils.radToDeg(worldEuler.y)} ${THREE.MathUtils.radToDeg(worldEuler.z)}`);
-
-                    gun.setAttribute('dynamic-body', 'mass:0.6; shape:box');
-                });
-            });
-        })();
-
-        // Tir du projectile
+        // Tir projectile
         AFRAME.registerComponent('shoot', {
             schema: { cooldown: {type:'int', default:1500}, speed: {type:'number', default:15} },
-            init: function () {
+            init: function() {
                 const gun = this.el;
                 const rightHand = document.querySelector('#rightHand');
                 let canShoot = true;
 
-                function forwardDir(el) {
-                    const q = new THREE.Quaternion();
-                    el.object3D.getWorldQuaternion(q);
-                    return new THREE.Vector3(0,0,-1).applyQuaternion(q).normalize();
+                function getForwardVector(el) {
+                    const vec = new THREE.Vector3(0,0,-1);
+                    vec.applyQuaternion(el.object3D.getWorldQuaternion(new THREE.Quaternion()));
+                    return vec.normalize();
                 }
 
                 rightHand.addEventListener('triggerdown', () => {
@@ -207,37 +150,35 @@
                     loaded.object3D.getWorldPosition(spawnPos);
 
                     const p = document.createElement('a-entity');
-                    p.setAttribute('gltf-model', 'url(projectile.glb)');
-                    p.setAttribute('scale', '1 1 1');
-                    p.setAttribute('position', `${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`);
+                    p.setAttribute('gltf-model','url(projectile.glb)');
+                    p.setAttribute('scale','0.2 0.2 0.2');
+                    p.setAttribute('position',`${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`);
                     p.setAttribute('flat-shading','');
                     gun.sceneEl.appendChild(p);
 
-                    // Appliquer la physique après le chargement du modèle
-                    p.addEventListener('model-loaded', () => {
-                        p.setAttribute('dynamic-body', 'mass:0.25; shape:sphere; sphereRadius:0.05');
+                    // Physique du projectile
+                    p.addEventListener('model-loaded',()=>{
+                        p.setAttribute('dynamic-body','mass:0.2; shape:sphere; sphereRadius:0.05');
                     });
 
-                    const vel = forwardDir(gun).multiplyScalar(this.data.speed);
-                    p.addEventListener('body-loaded', () => {
-                        if (p.body) {
-                            p.body.velocity.set(vel.x, vel.y, vel.z);
-                            if (p.body.wakeUp) p.body.wakeUp();
-                        }
+                    const velocity = getForwardVector(gun).multiplyScalar(this.data.speed);
+                    p.addEventListener('body-loaded',()=>{
+                        if(p.body) { p.body.velocity.set(velocity.x, velocity.y, velocity.z); if(p.body.wakeUp) p.body.wakeUp(); }
                     });
 
                     loaded.setAttribute('visible','false');
-                    setTimeout(()=>{ if (p.parentNode) p.parentNode.removeChild(p); },5000);
+                    setTimeout(()=>{ if(p.parentNode) p.parentNode.removeChild(p); },5000);
                     setTimeout(()=>{ loaded.setAttribute('visible','true'); canShoot=true; }, this.data.cooldown);
                 });
             }
         });
-        document.addEventListener('DOMContentLoaded',()=>{
-            const gun=document.querySelector('#gun');
-            if(gun && !gun.components.shoot) gun.setAttribute('shoot','cooldown:1500; speed:18');
-        });
-    </script>
 
+        document.addEventListener('DOMContentLoaded',()=>{
+            const gun = document.querySelector('#gun');
+            if(gun && !gun.components.shoot) gun.setAttribute('shoot','cooldown:1500; speed:15');
+        });
+
+    </script>
 </a-scene>
 </body>
 </html>
