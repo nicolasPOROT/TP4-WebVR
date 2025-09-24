@@ -36,14 +36,14 @@
 
         <!-- Mains : super-hands limité au bouton grip (side) + collision par sphère -->
         <a-entity id="leftHand"
-                  oculus-touch-controls="hand: left"
+                  hand-controls="hand: left; handModelStyle: lowPoly; color: #ffcccc"
                   super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
                   sphere-collider="objects: .grabbable"
                   static-body="shape: sphere; sphereRadius: 0.03">
         </a-entity>
 
         <a-entity id="rightHand"
-                  oculus-touch-controls="hand: right"
+                  hand-controls="hand: right; handModelStyle: lowPoly; color: #ffcccc"
                   super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
                   sphere-collider="objects: .grabbable"
                   static-body="shape: sphere; sphereRadius: 0.03">
@@ -72,7 +72,6 @@
     <a-entity id="GunWrapper" rotation="0 0 0" scale="1 1 1"
               position="0 1 0"
               class="grabbable"
-              shadow="cast: true; receive: true"
               geometry="primitive: box; width: 0.3; height: 0.15; depth: 0.05"
               material="opacity: 0; transparent: true"
               visible="true"
@@ -83,13 +82,13 @@
         <a-entity id="gunModel" position="0 0 0"
                   gltf-model="#gun"
                   scale="0.05 0.05 0.05"
-                  shadow="cast: true; receive: true">
+                  flat-shading>
         </a-entity>
 
         <a-entity id="shootPos" rotation="-90 0 0" position="0 1 0"></a-entity>
 
         <!-- Projectile attaché -->
-        <a-entity id="attachedProjectile" gltf-model="#projectile" position="0 0 0" scale="0.05 0.05 0.05"></a-entity>
+        <a-entity id="attachedProjectile" gltf-model="#projectile" position="0 0 0" scale="0.05 0.05 0.05" flat-shading></a-entity>
     </a-entity>
 
     <!-- Sol -->
@@ -217,6 +216,19 @@
                     attachedProjectile.setAttribute('visible', 'true');
                     cooldownActive = false;
                 }, cooldown);
+            });
+        }
+    });
+    // load les models en flat-shading
+    AFRAME.registerComponent('flat-shading', {
+        init: function () {
+            this.el.addEventListener('model-loaded', () => {
+                this.el.getObject3D('mesh').traverse((node) => {
+                    if (node.isMesh) {
+                        node.material.flatShading = true;
+                        node.material.needsUpdate = true;
+                    }
+                });
             });
         }
     });
