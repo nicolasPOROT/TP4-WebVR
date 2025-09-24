@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
-    <script> delete AFRAME.components["grabbable"]; </script> <!-- cf. super-hands -->
+    <script> delete AFRAME.components["grabbable"]; </script>
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.5.2/dist/aframe-extras.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@c-frame/aframe-physics-system@4.1.0/dist/aframe-physics-system.min.js"></script>
     <script src="https://unpkg.com/super-hands@3.0.5/dist/super-hands.min.js"></script>
@@ -34,7 +34,6 @@
     <a-entity id="rig" position="0.77334 0.16159 4.0298" joystick-movement="speed: 2" snap-turn="angle: 30; cooldown: 300">
         <a-entity id="head" camera wasd-controls-enabled="false" look-controls></a-entity>
 
-        <!-- Mains : super-hands limité au bouton grip (side) + collision par sphère -->
         <a-entity id="leftHand"
                   hand-controls="hand: left; handModelStyle: lowPoly; color: #ffcccc"
                   super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
@@ -69,6 +68,7 @@
                 dynamic-body="mass: 0.75; shape: cylinder">
     </a-cylinder>
 
+    <!-- Pistolet -->
     <a-entity id="GunWrapper" rotation="0 0 0" scale="1 1 1"
               position="0 1 0"
               class="grabbable"
@@ -87,7 +87,7 @@
 
         <a-entity id="shootPos" rotation="-90 0 0" position="0 1 0"></a-entity>
 
-        <!-- Projectile attaché -->
+        <!-- Projectile attaché au pistolet -->
         <a-entity id="attachedProjectile" gltf-model="#projectile" position="0 0 0" scale="0.05 0.05 0.05" flat-shading></a-entity>
     </a-entity>
 
@@ -130,7 +130,7 @@
         }
     });
 
-    // Rotation par crans (joystick droit)
+    // Rotation joystick droit
     AFRAME.registerComponent('snap-turn', {
         schema: { angle: { type: 'number', default: 30 }, cooldown: { type: 'number', default: 300 } },
         init: function () {
@@ -149,7 +149,7 @@
         }
     });
 
-    // Gun Shooting
+    // Systeme de tir
     AFRAME.registerComponent('gun-shoot', {
         schema: {
             hand: { type: 'selector' },
@@ -168,14 +168,12 @@
 
             hand.addEventListener('triggerdown', () => {
                 if (!el.is('grabbed')) return; // Tir seulement si le gun est en main
-                if (cooldownActive) return;    // Empêche le spam de tir
+                if (cooldownActive) return;    // Empêche le spam de tir, (cooldown)
 
                 cooldownActive = true;
-
-                // Cacher le projectile attaché
                 attachedProjectile.setAttribute('visible', 'false');
 
-                // Entité physique = sphère invisible
+                // Entité physique, cylindre invisible pour la hitbox
                 const bullet = document.createElement('a-sphere');
                 const startPos = shootPos.object3D.getWorldPosition(new THREE.Vector3());
                 bullet.setAttribute('position', startPos);
@@ -183,14 +181,14 @@
                 bullet.setAttribute('material', 'opacity:0; transparent:true');
                 bullet.setAttribute('dynamic-body', 'mass:0.1; shape:sphere');
 
-                // Enfant visuel = modèle 3D
+                // Visuel, modèle 3D
                 const visual = document.createElement('a-entity');
                 visual.setAttribute('gltf-model', '#projectile');
                 visual.setAttribute('scale', '0.05 0.05 0.05');
                 visual.setAttribute('shadow', 'cast:true; receive:true');
                 bullet.appendChild(visual);
 
-                // Ajouter la balle à la scène
+                // Ajouter le projectile à la scène
                 el.sceneEl.appendChild(bullet);
 
                 // Calculer la direction vers l'avant de shootPos
