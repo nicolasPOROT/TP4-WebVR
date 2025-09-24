@@ -86,7 +86,7 @@
                   shadow="cast: true; receive: true">
         </a-entity>
 
-        <a-entity id="shootPos" rotation="90 0 0" position="0 0.5 0"></a-entity>
+        <a-entity id="shootPos" rotation="-90 0 0" position="0 1 0"></a-entity>
 
         <!-- Projectile attaché -->
         <a-entity id="attachedProjectile" gltf-model="#projectile" position="0 0 0" scale="0.05 0.05 0.05"></a-entity>
@@ -154,26 +154,33 @@
     AFRAME.registerComponent('gun-shoot', {
         schema: {
             hand: { type: 'selector' },
-            bulletSpeed: { type: 'number', default: 40 }
+            bulletSpeed: { type: 'number', default: 40 },
+            cooldown: { type: 'number', default: 3000 } // 3 secondes
         },
         init: function () {
             const el = this.el;
             const hand = this.data.hand;
             const speed = this.data.bulletSpeed;
+            const cooldown = this.data.cooldown;
 
-            // Récupérer la position de tir
             const shootPos = el.querySelector('#shootPos');
+            const attachedProjectile = el.querySelector('#attachedProjectile');
+            let cooldownActive = false;
 
             hand.addEventListener('triggerdown', () => {
-
                 if (!el.is('grabbed')) return; // Tir seulement si le gun est en main
+                if (cooldownActive) return;    // Empêche le spam de tir
+
+                cooldownActive = true;
+
+                // Cacher le projectile attaché
+                attachedProjectile.setAttribute('visible', 'false');
 
                 // Entité physique = sphère invisible
-                const bullet = document.createElement('a-cylinder');
+                const bullet = document.createElement('a-sphere');
                 const startPos = shootPos.object3D.getWorldPosition(new THREE.Vector3());
                 bullet.setAttribute('position', startPos);
                 bullet.setAttribute('radius', 0.05);
-                bullet.setAttribute('height', 0.5);
                 bullet.setAttribute('material', 'opacity:0; transparent:true');
                 bullet.setAttribute('dynamic-body', 'mass:0.1; shape:sphere');
 
@@ -184,27 +191,19 @@
                 visual.setAttribute('shadow', 'cast:true; receive:true');
                 bullet.appendChild(visual);
 
-                // Ajouter le corps physique
-                bullet.setAttribute('dynamic-body', `mass: 0.1; shape: sphere`);
-
                 // Ajouter la balle à la scène
                 el.sceneEl.appendChild(bullet);
 
                 // Calculer la direction vers l'avant de shootPos
-                const direction = new THREE.Vector3(0, 0, -1); // Avant local
-                shootPos.object3D.getWorldQuaternion(new THREE.Quaternion())
-                    .multiply(new THREE.Quaternion())
-                    .setFromAxisAngle(new THREE.Vector3(0,0,0),0); // pas nécessaire mais peut garder pour ajuster
-
-                shootPos.object3D.getWorldQuaternion(new THREE.Quaternion()).multiply(direction); // inutile ici
-
-                shootPos.object3D.getWorldDirection(direction); // récupère la direction avant correctement
+                const direction = new THREE.Vector3();
+                shootPos.object3D.getWorldDirection(direction);
                 direction.normalize();
 
-                // Appliquer la vitesse initiale via A-Frame Physics
+                // Appliquer la vitesse initiale
                 bullet.addEventListener('body-loaded', () => {
                     bullet.setAttribute('velocity', `${direction.x * speed} ${direction.y * speed} ${direction.z * speed}`);
-                    // Forcer l'orientation du modèle 3D dans la direction du tir
+
+                    // Forcer l'orientation visuelle dans la direction du tir
                     const lookAt = new THREE.Vector3().copy(direction).add(startPos);
                     visual.object3D.lookAt(lookAt);
                     visual.setAttribute('rotation', '0 -90 90');
@@ -213,6 +212,11 @@
                 // Supprimer la balle après 5 secondes
                 setTimeout(() => { bullet.remove(); }, 5000);
 
+                // Réactiver le projectile attaché + reset cooldown après 3s
+                setTimeout(() => {
+                    attachedProjectile.setAttribute('visible', 'true');
+                    cooldownActive = false;
+                }, cooldown);
             });
         }
     });
