@@ -86,7 +86,7 @@
                   shadow="cast: true; receive: true">
         </a-entity>
 
-        <a-entity id="shootPos" rotation="0 -90 0" position="0 0.5 0"></a-entity>
+        <a-entity id="shootPos" rotation="90 0 0" position="0 0.5 0"></a-entity>
 
         <!-- Projectile attaché -->
         <a-entity id="attachedProjectile" gltf-model="#projectile" position="0 0 0" scale="0.05 0.05 0.05"></a-entity>
@@ -181,7 +181,6 @@
                 const visual = document.createElement('a-entity');
                 visual.setAttribute('gltf-model', '#projectile');
                 visual.setAttribute('scale', '0.05 0.05 0.05');
-                visual.setAttribute('rotation', '90 0 0');
                 visual.setAttribute('shadow', 'cast:true; receive:true');
                 bullet.appendChild(visual);
 
@@ -208,6 +207,7 @@
                     // Forcer l'orientation du modèle 3D dans la direction du tir
                     const lookAt = new THREE.Vector3().copy(direction).add(startPos);
                     visual.object3D.lookAt(lookAt);
+                    visual.setAttribute('rotation', '0 -90 90');
                 });
 
                 // Supprimer la balle après 5 secondes
