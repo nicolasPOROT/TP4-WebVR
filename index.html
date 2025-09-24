@@ -206,7 +206,7 @@
                     // Forcer l'orientation visuelle dans la direction du tir
                     const lookAt = new THREE.Vector3().copy(direction).add(startPos);
                     visual.object3D.lookAt(lookAt);
-                    visual.setAttribute('rotation', '0 -90 90');
+                    visual.object3D.rotateX(THREE.MathUtils.degToRad(90));
                 });
 
                 // Supprimer la balle après 5 secondes
